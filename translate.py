@@ -447,7 +447,7 @@ def create_alfred_output(query):
             for r in translations[:5]:  # Limit translations
                 items.append({
                     'title': r['text'],
-                    'subtitle': f"[Translation] via {r['source']} - Press Enter to copy",
+                    'subtitle': r['source'],
                     'arg': r['text'],
                     'valid': True,
                     'icon': {
@@ -494,11 +494,11 @@ def create_alfred_output(query):
                     label = 'Related'
                     icon_suffix = ''
 
-                display_subtitle = f"[{label}] {subtitle}" if subtitle else f"[{label}]"
+                display_subtitle = subtitle if subtitle else label
 
                 items.append({
                     'title': s['text'],
-                    'subtitle': f"{display_subtitle} - Press Enter to copy",
+                    'subtitle': display_subtitle,
                     'arg': s['text'],
                     'valid': True,
                     'icon': {
