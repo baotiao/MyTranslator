@@ -13,7 +13,6 @@ import uuid
 import urllib.request
 import urllib.parse
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def get_youdao_sign(app_key, app_secret, query, salt, cur_time):
@@ -70,37 +69,6 @@ def translate_youdao_official(query, app_key, app_secret):
             for v in values[:2]:
                 if v and v not in [r['text'] for r in results]:
                     results.append({'text': v, 'source': 'Youdao API (Web)'})
-
-    return results
-
-
-def translate_youdao_suggest(query):
-    """Get multiple translations from Youdao Suggest API"""
-    url = 'https://dict.youdao.com/suggest?num=5&ver=3.0&doctype=json&cache=false&le=en'
-    params = {'q': query}
-    full_url = url + '&' + urllib.parse.urlencode(params)
-
-    req = urllib.request.Request(full_url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
-
-    results = []
-    try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            result = json.loads(response.read().decode('utf-8'))
-
-        if result.get('result', {}).get('code') == 200:
-            entries = result.get('data', {}).get('entries', [])
-            for entry in entries:
-                explain = entry.get('explain', '')
-                entry_text = entry.get('entry', '')
-                if explain:
-                    # Format: "entry: explain" or just "explain" if entry matches query
-                    if entry_text == query:
-                        results.append({'text': explain, 'source': 'Youdao Dict'})
-                    else:
-                        results.append({'text': f"{entry_text}: {explain}", 'source': 'Youdao Dict'})
-    except Exception:
-        pass
 
     return results
 
@@ -289,49 +257,6 @@ def translate_youdao_dict(query):
     return results, similar_words
 
 
-def translate_mymemory(query):
-    """Translate using MyMemory API with multiple matches"""
-    url = 'https://api.mymemory.translated.net/get'
-
-    params = {
-        'q': query,
-        'langpair': 'zh-CN|en',
-    }
-
-    full_url = url + '?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(full_url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
-
-    results = []
-    try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            result = json.loads(response.read().decode('utf-8'))
-
-        if result.get('responseStatus') == 200:
-            # Main translation
-            main_text = result.get('responseData', {}).get('translatedText')
-            if main_text:
-                results.append({'text': main_text, 'source': 'MyMemory'})
-
-            # Additional matches (deduplicated)
-            seen = {main_text.lower() if main_text else ''}
-            matches = result.get('matches', [])
-            for m in matches[:5]:
-                trans = m.get('translation', '')
-                if trans and trans.lower() not in seen:
-                    seen.add(trans.lower())
-                    quality = m.get('quality', 0)
-                    source = m.get('source', 'MyMemory')
-                    results.append({
-                        'text': trans,
-                        'source': f"MyMemory ({source})" if source != 'MyMemory' else 'MyMemory'
-                    })
-    except Exception:
-        pass
-
-    return results
-
-
 def translate_google_free(query):
     """Translate using Google Translate (free, may be rate limited)"""
     url = 'https://translate.googleapis.com/translate_a/single'
@@ -364,7 +289,7 @@ def translate_google_free(query):
 
 
 def get_all_translations(query):
-    """Get translations and similar words from multiple sources (parallel requests)"""
+    """Get translations and similar words from Youdao Dict API"""
     if not query or not query.strip():
         return [], []
 
@@ -378,56 +303,21 @@ def get_all_translations(query):
     app_key = os.environ.get('youdao_app_key', '').strip()
     app_secret = os.environ.get('youdao_app_secret', '').strip()
 
-    # Define API call functions
-    def call_youdao_official():
-        if app_key and app_secret:
-            return ('official', translate_youdao_official(query, app_key, app_secret))
-        return ('official', [])
+    # Use official API if credentials provided, otherwise use free dict API
+    if app_key and app_secret:
+        try:
+            results = translate_youdao_official(query, app_key, app_secret)
+            for r in results:
+                if r['text'].lower() not in seen_texts:
+                    seen_texts.add(r['text'].lower())
+                    r['type'] = 'translation'
+                    all_results.append(r)
+        except Exception:
+            pass
 
-    def call_youdao_suggest():
-        return ('suggest', translate_youdao_suggest(query))
-
-    def call_youdao_dict():
-        return ('dict', translate_youdao_dict(query))
-
-    def call_mymemory():
-        return ('mymemory', translate_mymemory(query))
-
-    # Run all API calls in parallel
-    results_map = {}
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [
-            executor.submit(call_youdao_official),
-            executor.submit(call_youdao_suggest),
-            executor.submit(call_youdao_dict),
-            executor.submit(call_mymemory),
-        ]
-        for future in as_completed(futures):
-            try:
-                name, result = future.result()
-                results_map[name] = result
-            except Exception:
-                pass
-
-    # Process official API results
-    if 'official' in results_map:
-        for r in results_map['official']:
-            if r['text'].lower() not in seen_texts:
-                seen_texts.add(r['text'].lower())
-                r['type'] = 'translation'
-                all_results.append(r)
-
-    # Process suggest API results
-    if 'suggest' in results_map:
-        for r in results_map['suggest']:
-            if r['text'].lower() not in seen_texts:
-                seen_texts.add(r['text'].lower())
-                r['type'] = 'translation'
-                all_results.append(r)
-
-    # Process dict API results (returns tuple: translations, similar_words)
-    if 'dict' in results_map:
-        results, similar = results_map['dict']
+    # Always use Youdao Dict API (fast and comprehensive)
+    try:
+        results, similar = translate_youdao_dict(query)
         for r in results:
             if r['text'].lower() not in seen_texts:
                 seen_texts.add(r['text'].lower())
@@ -436,15 +326,8 @@ def get_all_translations(query):
             if s['text'].lower() not in seen_similar:
                 seen_similar.add(s['text'].lower())
                 all_similar.append(s)
-
-    # Process mymemory API results
-    if 'mymemory' in results_map:
-        for r in results_map['mymemory']:
-            if len(all_results) < 3 or r['text'].lower() not in seen_texts:
-                if r['text'].lower() not in seen_texts:
-                    seen_texts.add(r['text'].lower())
-                r['type'] = 'translation'
-                all_results.append(r)
+    except Exception:
+        pass
 
     # Filter out results that are same as input query (useless)
     query_lower = query.lower().strip()

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>bundleid</key>
-	<string>com.baotiao.youdao-translate</string>
+	<string>com.baotiao.wordorigin</string>
 	<key>category</key>
 	<string>Productivity</string>
 	<key>connections</key>
@@ -25,11 +25,11 @@
 	<key>createdby</key>
 	<string>baotiao</string>
 	<key>description</key>
-	<string>Translate Chinese to English with memory aids using Youdao API</string>
+	<string>Fast translation with word origins, forms, and collocations</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
-	<string>Youdao Translate</string>
+	<string>WordOrigin</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -66,9 +66,9 @@
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Translate with synonyms, memory aids, and collocations</string>
+				<string>Translation with word origins, forms, and collocations</string>
 				<key>title</key>
-				<string>Youdao Translate</string>
+				<string>WordOrigin</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -100,19 +100,19 @@
 		</dict>
 	</array>
 	<key>readme</key>
-	<string>## Youdao Translate Alfred Workflow
+	<string>## WordOrigin - Alfred Translation Workflow
 
 Use keyword `yd` followed by text to translate.
 
 ### Features
-- Multiple translation results
-- Word etymology (词源记忆)
-- Word discrimination (词义辨析)
+- Fast translation (~0.3s)
+- Word etymology (词源词根)
+- Word forms (词形变化)
 - Common collocations (常用搭配)
-- Synonyms and related words
+- Word discrimination (词义辨析)
 
 ### Examples
-- `yd happy` - Translate and show memory aids
+- `yd happy` - Translate with word origins
 - `yd 你好` - Chinese to English
 
 Press Enter to copy the selected result.</string>
@@ -181,6 +181,6 @@ Press Enter to copy the selected result.</string>
 	<key>version</key>
 	<string>1.0.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/baotiao/WordBridge</string>
+	<string>https://github.com/baotiao/WordOrigin</string>
 </dict>
 </plist>
