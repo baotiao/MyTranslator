@@ -447,29 +447,9 @@ def get_all_translations(query):
     except Exception:
         pass
 
-    # Try Google as fallback (always try for more options)
-    try:
-        results = translate_google_free(query)
-        for r in results:
-            if len(all_results) < 3 or r['text'].lower() not in seen_texts:
-                if r['text'].lower() not in seen_texts:
-                    seen_texts.add(r['text'].lower())
-                r['type'] = 'translation'
-                all_results.append(r)
-    except Exception:
-        pass
-
-    # Fallback if still no results
-    if not all_results:
-        try:
-            results = translate_google_free(query)
-            for r in results:
-                if r['text'].lower() not in seen_texts:
-                    seen_texts.add(r['text'].lower())
-                    r['type'] = 'translation'
-                    all_results.append(r)
-        except Exception:
-            pass
+    # Filter out results that are same as input query (useless)
+    query_lower = query.lower().strip()
+    all_results = [r for r in all_results if r['text'].lower().strip() != query_lower]
 
     return all_results, all_similar
 
