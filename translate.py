@@ -1,0 +1,506 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Youdao Translation Script for Alfred Workflow
+Translates Chinese to English using multiple APIs with multiple results
+"""
+
+import sys
+import json
+import hashlib
+import time
+import uuid
+import urllib.request
+import urllib.parse
+import os
+
+
+def get_youdao_sign(app_key, app_secret, query, salt, cur_time):
+    """Generate Youdao API signature"""
+    sign_str = app_key + truncate(query) + salt + cur_time + app_secret
+    return hashlib.sha256(sign_str.encode('utf-8')).hexdigest()
+
+
+def truncate(query):
+    """Truncate query for signature"""
+    if query is None:
+        return None
+    size = len(query)
+    if size <= 20:
+        return query
+    return query[:10] + str(size) + query[-10:]
+
+
+def translate_youdao_official(query, app_key, app_secret):
+    """Translate using official Youdao API (requires app_key and app_secret)"""
+    url = 'https://openapi.youdao.com/api'
+    salt = str(uuid.uuid4())
+    cur_time = str(int(time.time()))
+    sign = get_youdao_sign(app_key, app_secret, query, salt, cur_time)
+
+    params = {
+        'q': query,
+        'from': 'zh-CHS',
+        'to': 'en',
+        'appKey': app_key,
+        'salt': salt,
+        'sign': sign,
+        'signType': 'v3',
+        'curtime': cur_time,
+    }
+
+    data = urllib.parse.urlencode(params).encode('utf-8')
+    req = urllib.request.Request(url, data=data)
+
+    with urllib.request.urlopen(req, timeout=10) as response:
+        result = json.loads(response.read().decode('utf-8'))
+
+    results = []
+    if result.get('errorCode') == '0':
+        # Get main translations
+        translations = result.get('translation', [])
+        for t in translations:
+            results.append({'text': t, 'source': 'Youdao API'})
+
+        # Get web translations
+        web = result.get('web', [])
+        for w in web[:3]:
+            values = w.get('value', [])
+            for v in values[:2]:
+                if v and v not in [r['text'] for r in results]:
+                    results.append({'text': v, 'source': 'Youdao API (Web)'})
+
+    return results
+
+
+def translate_youdao_suggest(query):
+    """Get multiple translations from Youdao Suggest API"""
+    url = 'https://dict.youdao.com/suggest?num=5&ver=3.0&doctype=json&cache=false&le=en'
+    params = {'q': query}
+    full_url = url + '&' + urllib.parse.urlencode(params)
+
+    req = urllib.request.Request(full_url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+
+    results = []
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+        if result.get('result', {}).get('code') == 200:
+            entries = result.get('data', {}).get('entries', [])
+            for entry in entries:
+                explain = entry.get('explain', '')
+                entry_text = entry.get('entry', '')
+                if explain:
+                    # Format: "entry: explain" or just "explain" if entry matches query
+                    if entry_text == query:
+                        results.append({'text': explain, 'source': 'Youdao Dict'})
+                    else:
+                        results.append({'text': f"{entry_text}: {explain}", 'source': 'Youdao Dict'})
+    except Exception:
+        pass
+
+    return results
+
+
+def translate_youdao_dict(query):
+    """Translate using free Youdao dictionary API with multiple results"""
+    url = 'https://dict.youdao.com/jsonapi_s?doctype=json&jsonversion=4'
+
+    params = {
+        'q': query,
+        'le': 'en',
+        'client': 'web',
+        'keyfrom': 'webdict',
+    }
+
+    full_url = url + '&' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(full_url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+
+    results = []
+    similar_words = []
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+        # Try to get fanyi (translation) result
+        fanyi = result.get('fanyi', {})
+        if fanyi and fanyi.get('tran'):
+            results.append({'text': fanyi.get('tran'), 'source': 'Youdao Fanyi', 'type': 'translation'})
+
+        # Try to get web_trans results (multiple)
+        web_trans = result.get('web_trans', {})
+        if web_trans:
+            web_translation = web_trans.get('web-translation', [])
+            if web_translation:
+                trans_list = web_translation[0].get('trans', [])
+                for t in trans_list[:4]:
+                    value = t.get('value')
+                    if value and value not in [r['text'] for r in results]:
+                        results.append({'text': value, 'source': 'Youdao Web', 'type': 'translation'})
+
+        # Try to get ce (Chinese-English) results
+        ce = result.get('ce', {})
+        if ce:
+            word_list = ce.get('word', [])
+            for word in word_list:
+                trs = word.get('trs', [])
+                for tr in trs[:3]:
+                    tr_list = tr.get('tr', [])
+                    for t in tr_list:
+                        text = t.get('l', {}).get('i', [])
+                        if text and isinstance(text, list):
+                            for item in text[:2]:
+                                if item and item not in [r['text'] for r in results]:
+                                    results.append({'text': item, 'source': 'Youdao CE', 'type': 'translation'})
+
+        # Try to get ec (English-Chinese) results for reverse lookup
+        ec = result.get('ec', {})
+        if ec and isinstance(ec, dict):
+            word_data = ec.get('word', {})
+            # word can be a dict or a list
+            word_list = [word_data] if isinstance(word_data, dict) else (word_data if isinstance(word_data, list) else [])
+            for word in word_list:
+                if not isinstance(word, dict):
+                    continue
+                trs = word.get('trs', [])
+                for tr in trs[:3]:
+                    if not isinstance(tr, dict):
+                        continue
+                    # Try different formats
+                    tran = tr.get('tran', '')
+                    if tran and tran not in [r['text'] for r in results]:
+                        pos = tr.get('pos', '')
+                        text = f"{pos} {tran}" if pos else tran
+                        results.append({'text': text, 'source': 'Youdao EC', 'type': 'translation'})
+                    # Also try the tr list format
+                    tr_list = tr.get('tr', [])
+                    for t in tr_list:
+                        if not isinstance(t, dict):
+                            continue
+                        l_data = t.get('l', {})
+                        if isinstance(l_data, dict):
+                            i_list = l_data.get('i', [])
+                            if i_list and isinstance(i_list, list):
+                                for item in i_list[:2]:
+                                    if item and item not in [r['text'] for r in results]:
+                                        results.append({'text': item, 'source': 'Youdao EC', 'type': 'translation'})
+                            elif i_list and isinstance(i_list, str):
+                                if i_list not in [r['text'] for r in results]:
+                                    results.append({'text': i_list, 'source': 'Youdao EC', 'type': 'translation'})
+
+        # Get synonyms (同义词)
+        syno = result.get('syno', {})
+        if syno:
+            synos = syno.get('synos', [])
+            for s in synos[:3]:
+                pos = s.get('pos', '')
+                words = s.get('ws', [])
+                tran = s.get('tran', '')
+                for w in words[:3]:
+                    if isinstance(w, str):
+                        similar_words.append({
+                            'text': f"{w} ({pos})" if pos else w,
+                            'source': 'Synonym',
+                            'type': 'similar',
+                            'subtitle': tran
+                        })
+                    elif isinstance(w, dict):
+                        word_text = w.get('w', '')
+                        if word_text:
+                            similar_words.append({
+                                'text': f"{word_text} ({pos})" if pos else word_text,
+                                'source': 'Synonym',
+                                'type': 'similar',
+                                'subtitle': tran
+                            })
+
+        # Get related words (相关词)
+        rel_word = result.get('rel_word', {})
+        if rel_word:
+            rels = rel_word.get('rels', [])
+            for rel in rels[:3]:
+                rel_info = rel.get('rel', {})
+                pos = rel_info.get('pos', '')
+                words = rel_info.get('words', [])
+                for w in words[:2]:
+                    word_text = w.get('word', '')
+                    word_tran = w.get('tran', '')
+                    if word_text:
+                        similar_words.append({
+                            'text': word_text,
+                            'source': 'Related',
+                            'type': 'similar',
+                            'subtitle': f"{pos} {word_tran}" if pos else word_tran
+                        })
+
+        # Get common phrases (常用短语)
+        phrs = result.get('phrs', {})
+        if phrs:
+            phrases = phrs.get('phrs', [])
+            for p in phrases[:4]:
+                headword = p.get('headword', '')
+                translation = p.get('translation', '')
+                if headword:
+                    similar_words.append({
+                        'text': headword,
+                        'source': 'Phrase',
+                        'type': 'phrase',
+                        'subtitle': translation
+                    })
+
+    except Exception:
+        pass
+
+    return results, similar_words
+
+
+def translate_mymemory(query):
+    """Translate using MyMemory API with multiple matches"""
+    url = 'https://api.mymemory.translated.net/get'
+
+    params = {
+        'q': query,
+        'langpair': 'zh-CN|en',
+    }
+
+    full_url = url + '?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(full_url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+
+    results = []
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+        if result.get('responseStatus') == 200:
+            # Main translation
+            main_text = result.get('responseData', {}).get('translatedText')
+            if main_text:
+                results.append({'text': main_text, 'source': 'MyMemory'})
+
+            # Additional matches (deduplicated)
+            seen = {main_text.lower() if main_text else ''}
+            matches = result.get('matches', [])
+            for m in matches[:5]:
+                trans = m.get('translation', '')
+                if trans and trans.lower() not in seen:
+                    seen.add(trans.lower())
+                    quality = m.get('quality', 0)
+                    source = m.get('source', 'MyMemory')
+                    results.append({
+                        'text': trans,
+                        'source': f"MyMemory ({source})" if source != 'MyMemory' else 'MyMemory'
+                    })
+    except Exception:
+        pass
+
+    return results
+
+
+def translate_google_free(query):
+    """Translate using Google Translate (free, may be rate limited)"""
+    url = 'https://translate.googleapis.com/translate_a/single'
+
+    params = {
+        'client': 'gtx',
+        'sl': 'zh-CN',
+        'tl': 'en',
+        'dt': 't',
+        'q': query,
+    }
+
+    full_url = url + '?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(full_url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+
+    results = []
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+        if result and result[0]:
+            translated = ''.join([item[0] for item in result[0] if item[0]])
+            if translated:
+                results.append({'text': translated, 'source': 'Google'})
+    except Exception:
+        pass
+
+    return results
+
+
+def get_all_translations(query):
+    """Get translations and similar words from multiple sources"""
+    if not query or not query.strip():
+        return [], []
+
+    query = query.strip()
+    all_results = []
+    all_similar = []
+    seen_texts = set()
+    seen_similar = set()
+
+    # Check for Youdao API credentials from environment
+    app_key = os.environ.get('youdao_app_key', '').strip()
+    app_secret = os.environ.get('youdao_app_secret', '').strip()
+
+    # Try official Youdao API first if credentials are provided
+    if app_key and app_secret:
+        try:
+            results = translate_youdao_official(query, app_key, app_secret)
+            for r in results:
+                if r['text'].lower() not in seen_texts:
+                    seen_texts.add(r['text'].lower())
+                    r['type'] = 'translation'
+                    all_results.append(r)
+        except Exception:
+            pass
+
+    # Try Youdao Suggest API (good for word meanings)
+    try:
+        results = translate_youdao_suggest(query)
+        for r in results:
+            if r['text'].lower() not in seen_texts:
+                seen_texts.add(r['text'].lower())
+                r['type'] = 'translation'
+                all_results.append(r)
+    except Exception:
+        pass
+
+    # Try Youdao Dict API (returns both translations and similar words)
+    try:
+        results, similar = translate_youdao_dict(query)
+        for r in results:
+            if r['text'].lower() not in seen_texts:
+                seen_texts.add(r['text'].lower())
+                all_results.append(r)
+        for s in similar:
+            if s['text'].lower() not in seen_similar:
+                seen_similar.add(s['text'].lower())
+                all_similar.append(s)
+    except Exception:
+        pass
+
+    # Try MyMemory API (good for sentences)
+    try:
+        results = translate_mymemory(query)
+        for r in results:
+            if r['text'].lower() not in seen_texts:
+                seen_texts.add(r['text'].lower())
+                r['type'] = 'translation'
+                all_results.append(r)
+    except Exception:
+        pass
+
+    # Try Google as fallback
+    if not all_results:
+        try:
+            results = translate_google_free(query)
+            for r in results:
+                if r['text'].lower() not in seen_texts:
+                    seen_texts.add(r['text'].lower())
+                    r['type'] = 'translation'
+                    all_results.append(r)
+        except Exception:
+            pass
+
+    return all_results, all_similar
+
+
+def create_alfred_output(query):
+    """Create Alfred JSON output with translations and similar words"""
+    items = []
+
+    try:
+        translations, similar_words = get_all_translations(query)
+
+        # Add translations first
+        if translations:
+            for r in translations[:5]:  # Limit translations
+                items.append({
+                    'title': r['text'],
+                    'subtitle': f"[Translation] via {r['source']} - Press Enter to copy",
+                    'arg': r['text'],
+                    'valid': True,
+                    'icon': {
+                        'path': 'icon.png'
+                    },
+                    'mods': {
+                        'cmd': {
+                            'subtitle': 'Press Cmd+Enter to copy original text',
+                            'arg': query,
+                            'valid': True
+                        }
+                    }
+                })
+
+        # Add similar words / synonyms / phrases
+        if similar_words:
+            for s in similar_words[:6]:  # Limit similar words
+                subtitle = s.get('subtitle', '')
+                source = s.get('source', 'Similar')
+                type_label = s.get('type', 'similar')
+
+                if type_label == 'phrase':
+                    label = 'Phrase'
+                elif source == 'Synonym':
+                    label = 'Synonym'
+                else:
+                    label = 'Related'
+
+                display_subtitle = f"[{label}] {subtitle}" if subtitle else f"[{label}]"
+
+                items.append({
+                    'title': s['text'],
+                    'subtitle': f"{display_subtitle} - Press Enter to copy",
+                    'arg': s['text'],
+                    'valid': True,
+                    'icon': {
+                        'path': 'icon.png'
+                    },
+                    'mods': {
+                        'cmd': {
+                            'subtitle': 'Press Cmd+Enter to search this word',
+                            'arg': s['text'].split(' (')[0],  # Remove POS tag for search
+                            'valid': True
+                        }
+                    }
+                })
+
+        if not items:
+            items.append({
+                'title': 'Translation failed',
+                'subtitle': 'Could not translate the text. Please try again.',
+                'valid': False,
+                'icon': {
+                    'path': 'icon.png'
+                }
+            })
+    except Exception as e:
+        items.append({
+            'title': 'Error occurred',
+            'subtitle': str(e),
+            'valid': False,
+            'icon': {
+                'path': 'icon.png'
+            }
+        })
+
+    return json.dumps({'items': items}, ensure_ascii=False)
+
+
+def main():
+    if len(sys.argv) < 2:
+        query = ''
+    else:
+        query = sys.argv[1]
+
+    output = create_alfred_output(query)
+    print(output)
+
+
+if __name__ == '__main__':
+    main()
