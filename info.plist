@@ -8,11 +8,11 @@
 	<string>Productivity</string>
 	<key>connections</key>
 	<dict>
-		<key>E8A7D4C5-6B3F-4A2E-9D1C-8F5B2A7E3C6D</key>
+		<key>script-filter-uid</key>
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>A1B2C3D4-E5F6-7890-ABCD-EF1234567890</string>
+				<string>clipboard-uid</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -25,34 +25,13 @@
 	<key>createdby</key>
 	<string>baotiao</string>
 	<key>description</key>
-	<string>Translate Chinese to English using Youdao API</string>
+	<string>Translate Chinese to English with memory aids using Youdao API</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
 	<string>Youdao Translate</string>
 	<key>objects</key>
 	<array>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>argumenttype</key>
-				<integer>0</integer>
-				<key>keyword</key>
-				<string>yd</string>
-				<key>subtext</key>
-				<string>Translate Chinese to English</string>
-				<key>text</key>
-				<string>Youdao Translate</string>
-				<key>withspace</key>
-				<true/>
-			</dict>
-			<key>type</key>
-			<string>alfred.workflow.input.keyword</string>
-			<key>uid</key>
-			<string>E8A7D4C5-6B3F-4A2E-9D1C-8F5B2A7E3C6D</string>
-			<key>version</key>
-			<integer>1</integer>
-		</dict>
 		<dict>
 			<key>config</key>
 			<dict>
@@ -72,10 +51,8 @@
 				<string>yd</string>
 				<key>queuedelaycustom</key>
 				<integer>3</integer>
-				<key>queuedelayimmediatelyaliaspriority</key>
-				<false/>
-				<key>queuedelayimmediatepriority</key>
-				<false/>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
 				<key>queuedelaymode</key>
 				<integer>0</integer>
 				<key>queuemode</key>
@@ -83,13 +60,13 @@
 				<key>runningsubtext</key>
 				<string>Translating...</string>
 				<key>script</key>
-				<string>python3 translate.py "{query}"</string>
+				<string>/usr/bin/python3 translate.py "{query}"</string>
 				<key>scriptargtype</key>
 				<integer>0</integer>
 				<key>scriptfile</key>
 				<string></string>
 				<key>subtext</key>
-				<string>Translate Chinese to English</string>
+				<string>Translate with synonyms, memory aids, and collocations</string>
 				<key>title</key>
 				<string>Youdao Translate</string>
 				<key>type</key>
@@ -100,7 +77,7 @@
 			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>E8A7D4C5-6B3F-4A2E-9D1C-8F5B2A7E3C6D</string>
+			<string>script-filter-uid</string>
 			<key>version</key>
 			<integer>3</integer>
 		</dict>
@@ -117,7 +94,7 @@
 			<key>type</key>
 			<string>alfred.workflow.output.clipboard</string>
 			<key>uid</key>
-			<string>A1B2C3D4-E5F6-7890-ABCD-EF1234567890</string>
+			<string>clipboard-uid</string>
 			<key>version</key>
 			<integer>3</integer>
 		</dict>
@@ -125,26 +102,35 @@
 	<key>readme</key>
 	<string>## Youdao Translate Alfred Workflow
 
-Use keyword `yd` followed by Chinese text to translate to English.
+Use keyword `yd` followed by text to translate.
 
-Example: `yd 你好世界`
+### Features
+- Multiple translation results
+- Word etymology (词源记忆)
+- Word discrimination (词义辨析)
+- Common collocations (常用搭配)
+- Synonyms and related words
 
-Press Enter to copy the translation to clipboard.</string>
+### Examples
+- `yd happy` - Translate and show memory aids
+- `yd 你好` - Chinese to English
+
+Press Enter to copy the selected result.</string>
 	<key>uidata</key>
 	<dict>
-		<key>E8A7D4C5-6B3F-4A2E-9D1C-8F5B2A7E3C6D</key>
+		<key>script-filter-uid</key>
 		<dict>
 			<key>xpos</key>
-			<integer>100</integer>
+			<integer>150</integer>
 			<key>ypos</key>
-			<integer>100</integer>
+			<integer>50</integer>
 		</dict>
-		<key>A1B2C3D4-E5F6-7890-ABCD-EF1234567890</key>
+		<key>clipboard-uid</key>
 		<dict>
 			<key>xpos</key>
-			<integer>400</integer>
+			<integer>450</integer>
 			<key>ypos</key>
-			<integer>100</integer>
+			<integer>50</integer>
 		</dict>
 	</dict>
 	<key>userconfigurationconfig</key>
@@ -162,7 +148,7 @@ Press Enter to copy the translation to clipboard.</string>
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Your Youdao Translation API App Key (optional, uses free API if empty)</string>
+			<string>Your Youdao Translation API App Key (optional)</string>
 			<key>label</key>
 			<string>Youdao App Key</string>
 			<key>type</key>
@@ -183,7 +169,7 @@ Press Enter to copy the translation to clipboard.</string>
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Your Youdao Translation API App Secret (optional, uses free API if empty)</string>
+			<string>Your Youdao Translation API App Secret (optional)</string>
 			<key>label</key>
 			<string>Youdao App Secret</string>
 			<key>type</key>
@@ -195,6 +181,6 @@ Press Enter to copy the translation to clipboard.</string>
 	<key>version</key>
 	<string>1.0.0</string>
 	<key>webaddress</key>
-	<string></string>
+	<string>https://github.com/baotiao/WordBridge</string>
 </dict>
 </plist>
