@@ -252,6 +252,55 @@ def translate_youdao_dict(query):
                         'subtitle': translation
                     })
 
+        # Get etymology (词源记忆)
+        etym = result.get('etym', {})
+        if etym:
+            etyms = etym.get('etyms', {})
+            zh_etyms = etyms.get('zh', []) if isinstance(etyms, dict) else []
+            for e in zh_etyms[:1]:
+                value = e.get('value', '')
+                desc = e.get('desc', '')
+                if value:
+                    similar_words.append({
+                        'text': f"词源: {value}",
+                        'source': 'Memory',
+                        'type': 'memory',
+                        'subtitle': desc if desc else '词源��忆法'
+                    })
+
+        # Get word discrimination (词义辨析)
+        discriminate = result.get('discriminate', {})
+        if discriminate:
+            data_list = discriminate.get('data', [])
+            for d in data_list[:1]:
+                usages = d.get('usages', [])
+                for u in usages[:3]:
+                    hw = u.get('headword', '')
+                    usage = u.get('usage', '')
+                    if hw and usage and hw.lower() != query.lower():
+                        similar_words.append({
+                            'text': f"辨析 {hw}: {usage}",
+                            'source': 'Discriminate',
+                            'type': 'memory',
+                            'subtitle': '词义辨析'
+                        })
+
+        # Get collocations (常用搭配)
+        individual = result.get('individual', {})
+        if individual:
+            idiomatic = individual.get('idiomatic', [])
+            for item in idiomatic[:3]:
+                colloc = item.get('colloc', {})
+                en = colloc.get('en', '')
+                zh = colloc.get('zh', '')
+                if en:
+                    similar_words.append({
+                        'text': en,
+                        'source': 'Collocation',
+                        'type': 'collocation',
+                        'subtitle': zh if zh else '常用搭配'
+                    })
+
     except Exception:
         pass
 
@@ -437,19 +486,37 @@ def create_alfred_output(query):
                     }
                 })
 
-        # Add similar words / synonyms / phrases
+        # Add similar words / synonyms / phrases / memory aids
+        # Sort to prioritize memory aids: memory > collocation > synonym > related > phrase
         if similar_words:
-            for s in similar_words[:6]:  # Limit similar words
+            type_priority = {'memory': 0, 'collocation': 1, 'similar': 2, 'phrase': 3}
+            similar_words_sorted = sorted(similar_words,
+                key=lambda x: type_priority.get(x.get('type', 'phrase'), 3))
+
+            for s in similar_words_sorted[:10]:  # Limit similar words
                 subtitle = s.get('subtitle', '')
                 source = s.get('source', 'Similar')
                 type_label = s.get('type', 'similar')
 
+                # Determine label based on type
                 if type_label == 'phrase':
                     label = 'Phrase'
+                    icon_suffix = ''
+                elif type_label == 'memory':
+                    label = 'Memory'
+                    icon_suffix = ''
+                elif type_label == 'collocation':
+                    label = 'Colloc'
+                    icon_suffix = ''
                 elif source == 'Synonym':
                     label = 'Synonym'
+                    icon_suffix = ''
+                elif source == 'Discriminate':
+                    label = 'Compare'
+                    icon_suffix = ''
                 else:
                     label = 'Related'
+                    icon_suffix = ''
 
                 display_subtitle = f"[{label}] {subtitle}" if subtitle else f"[{label}]"
 
