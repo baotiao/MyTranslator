@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>bundleid</key>
-	<string>com.baotiao.wordorigin</string>
+	<string>com.baotiao.mytranslator</string>
 	<key>category</key>
 	<string>Productivity</string>
 	<key>connections</key>
@@ -29,7 +29,7 @@
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
-	<string>WordOrigin</string>
+	<string>MyTranslator</string>
 	<key>objects</key>
 	<array>
 		<dict>
@@ -68,7 +68,7 @@
 				<key>subtext</key>
 				<string>Translation with word origins, forms, and collocations</string>
 				<key>title</key>
-				<string>WordOrigin</string>
+				<string>MyTranslator</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>withspace</key>
@@ -181,6 +181,6 @@ Press Enter to copy the selected result.</string>
 	<key>version</key>
 	<string>1.0.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/baotiao/WordOrigin</string>
+	<string>https://github.com/baotiao/MyTranslator</string>
 </dict>
 </plist>

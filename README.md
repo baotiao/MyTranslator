@@ -1,4 +1,4 @@
-# WordOrigin
+# MyTranslator
 
 Fast Alfred workflow for English-Chinese translation with word origins and memory aids.
 
@@ -31,15 +31,15 @@ yd happy
 ## Installation
 
 ### Method 1: Download Release
-1. Download `WordOrigin.alfredworkflow` from [Releases](https://github.com/baotiao/WordOrigin/releases)
+1. Download `MyTranslator.alfredworkflow` from [Releases](https://github.com/baotiao/MyTranslator/releases)
 2. Double-click to install
 
 ### Method 2: Manual Install
 ```bash
-git clone https://github.com/baotiao/WordOrigin.git
-cd WordOrigin
-zip -r WordOrigin.alfredworkflow info.plist translate.py icon.png
-# Double-click WordOrigin.alfredworkflow to install
+git clone https://github.com/baotiao/MyTranslator.git
+cd MyTranslator
+zip -r MyTranslator.alfredworkflow info.plist translate.py icon.png
+# Double-click MyTranslator.alfredworkflow to install
 ```
 
 ## Usage
@@ -60,7 +60,7 @@ For higher quality translations with official Youdao API:
 
 1. Register at [Youdao AI Open Platform](https://ai.youdao.com/)
 2. Create a text translation application
-3. In Alfred: Workflows → WordOrigin → Configure Workflow
+3. In Alfred: Workflows → MyTranslator → Configure Workflow
 4. Enter your App Key and App Secret
 
 > Without credentials, the workflow uses free Youdao Dictionary API which works great for most cases.
