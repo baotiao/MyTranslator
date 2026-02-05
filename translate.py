@@ -13,6 +13,7 @@ import uuid
 import urllib.request
 import urllib.parse
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def get_youdao_sign(app_key, app_secret, query, salt, cur_time):
@@ -52,7 +53,7 @@ def translate_youdao_official(query, app_key, app_secret):
     data = urllib.parse.urlencode(params).encode('utf-8')
     req = urllib.request.Request(url, data=data)
 
-    with urllib.request.urlopen(req, timeout=10) as response:
+    with urllib.request.urlopen(req, timeout=5) as response:
         result = json.loads(response.read().decode('utf-8'))
 
     results = []
@@ -84,7 +85,7 @@ def translate_youdao_suggest(query):
 
     results = []
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             result = json.loads(response.read().decode('utf-8'))
 
         if result.get('result', {}).get('code') == 200:
@@ -123,7 +124,7 @@ def translate_youdao_dict(query):
     similar_words = []
 
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             result = json.loads(response.read().decode('utf-8'))
 
         # Try to get fanyi (translation) result
@@ -303,7 +304,7 @@ def translate_mymemory(query):
 
     results = []
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             result = json.loads(response.read().decode('utf-8'))
 
         if result.get('responseStatus') == 200:
@@ -349,7 +350,7 @@ def translate_google_free(query):
 
     results = []
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             result = json.loads(response.read().decode('utf-8'))
 
         if result and result[0]:
@@ -363,7 +364,7 @@ def translate_google_free(query):
 
 
 def get_all_translations(query):
-    """Get translations and similar words from multiple sources"""
+    """Get translations and similar words from multiple sources (parallel requests)"""
     if not query or not query.strip():
         return [], []
 
@@ -377,32 +378,56 @@ def get_all_translations(query):
     app_key = os.environ.get('youdao_app_key', '').strip()
     app_secret = os.environ.get('youdao_app_secret', '').strip()
 
-    # Try official Youdao API first if credentials are provided
-    if app_key and app_secret:
-        try:
-            results = translate_youdao_official(query, app_key, app_secret)
-            for r in results:
-                if r['text'].lower() not in seen_texts:
-                    seen_texts.add(r['text'].lower())
-                    r['type'] = 'translation'
-                    all_results.append(r)
-        except Exception:
-            pass
+    # Define API call functions
+    def call_youdao_official():
+        if app_key and app_secret:
+            return ('official', translate_youdao_official(query, app_key, app_secret))
+        return ('official', [])
 
-    # Try Youdao Suggest API (good for word meanings)
-    try:
-        results = translate_youdao_suggest(query)
-        for r in results:
+    def call_youdao_suggest():
+        return ('suggest', translate_youdao_suggest(query))
+
+    def call_youdao_dict():
+        return ('dict', translate_youdao_dict(query))
+
+    def call_mymemory():
+        return ('mymemory', translate_mymemory(query))
+
+    # Run all API calls in parallel
+    results_map = {}
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [
+            executor.submit(call_youdao_official),
+            executor.submit(call_youdao_suggest),
+            executor.submit(call_youdao_dict),
+            executor.submit(call_mymemory),
+        ]
+        for future in as_completed(futures):
+            try:
+                name, result = future.result()
+                results_map[name] = result
+            except Exception:
+                pass
+
+    # Process official API results
+    if 'official' in results_map:
+        for r in results_map['official']:
             if r['text'].lower() not in seen_texts:
                 seen_texts.add(r['text'].lower())
                 r['type'] = 'translation'
                 all_results.append(r)
-    except Exception:
-        pass
 
-    # Try Youdao Dict API (returns both translations and similar words)
-    try:
-        results, similar = translate_youdao_dict(query)
+    # Process suggest API results
+    if 'suggest' in results_map:
+        for r in results_map['suggest']:
+            if r['text'].lower() not in seen_texts:
+                seen_texts.add(r['text'].lower())
+                r['type'] = 'translation'
+                all_results.append(r)
+
+    # Process dict API results (returns tuple: translations, similar_words)
+    if 'dict' in results_map:
+        results, similar = results_map['dict']
         for r in results:
             if r['text'].lower() not in seen_texts:
                 seen_texts.add(r['text'].lower())
@@ -411,22 +436,15 @@ def get_all_translations(query):
             if s['text'].lower() not in seen_similar:
                 seen_similar.add(s['text'].lower())
                 all_similar.append(s)
-    except Exception:
-        pass
 
-    # Try MyMemory API (good for sentences)
-    # For sentences (few results), show MyMemory even if same translation
-    try:
-        results = translate_mymemory(query)
-        for r in results:
-            # If we have very few results, show different sources even with same text
+    # Process mymemory API results
+    if 'mymemory' in results_map:
+        for r in results_map['mymemory']:
             if len(all_results) < 3 or r['text'].lower() not in seen_texts:
                 if r['text'].lower() not in seen_texts:
                     seen_texts.add(r['text'].lower())
                 r['type'] = 'translation'
                 all_results.append(r)
-    except Exception:
-        pass
 
     # Filter out results that are same as input query (useless)
     query_lower = query.lower().strip()
