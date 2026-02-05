@@ -192,81 +192,62 @@ def translate_youdao_dict(query):
                                 if i_list not in [r['text'] for r in results]:
                                     results.append({'text': i_list, 'source': 'Youdao EC', 'type': 'translation'})
 
-        # Get synonyms (同义词)
-        syno = result.get('syno', {})
-        if syno:
-            synos = syno.get('synos', [])
-            for s in synos[:3]:
-                pos = s.get('pos', '')
-                words = s.get('ws', [])
-                tran = s.get('tran', '')
-                for w in words[:3]:
-                    if isinstance(w, str):
-                        similar_words.append({
-                            'text': f"{w} ({pos})" if pos else w,
-                            'source': 'Synonym',
-                            'type': 'similar',
-                            'subtitle': tran
-                        })
-                    elif isinstance(w, dict):
-                        word_text = w.get('w', '')
-                        if word_text:
-                            similar_words.append({
-                                'text': f"{word_text} ({pos})" if pos else word_text,
-                                'source': 'Synonym',
-                                'type': 'similar',
-                                'subtitle': tran
-                            })
-
-        # Get related words (相关词)
-        rel_word = result.get('rel_word', {})
-        if rel_word:
-            rels = rel_word.get('rels', [])
-            for rel in rels[:3]:
-                rel_info = rel.get('rel', {})
-                pos = rel_info.get('pos', '')
-                words = rel_info.get('words', [])
-                for w in words[:2]:
-                    word_text = w.get('word', '')
-                    word_tran = w.get('tran', '')
-                    if word_text:
-                        similar_words.append({
-                            'text': word_text,
-                            'source': 'Related',
-                            'type': 'similar',
-                            'subtitle': f"{pos} {word_tran}" if pos else word_tran
-                        })
-
-        # Get common phrases (常用短语)
-        phrs = result.get('phrs', {})
-        if phrs:
-            phrases = phrs.get('phrs', [])
-            for p in phrases[:4]:
-                headword = p.get('headword', '')
-                translation = p.get('translation', '')
-                if headword:
-                    similar_words.append({
-                        'text': headword,
-                        'source': 'Phrase',
-                        'type': 'phrase',
-                        'subtitle': translation
-                    })
-
-        # Get etymology (词源记忆)
+        # Get etymology (词源词根记忆)
         etym = result.get('etym', {})
         if etym:
             etyms = etym.get('etyms', {})
             zh_etyms = etyms.get('zh', []) if isinstance(etyms, dict) else []
-            for e in zh_etyms[:1]:
+            for e in zh_etyms[:2]:  # Show up to 2 etymology entries
                 value = e.get('value', '')
                 desc = e.get('desc', '')
                 if value:
                     similar_words.append({
-                        'text': f"词源: {value}",
-                        'source': 'Memory',
+                        'text': value,
+                        'source': 'Etymology',
                         'type': 'memory',
-                        'subtitle': desc if desc else '词源��忆法'
+                        'subtitle': f"词源: {desc}" if desc else '词根词缀记忆'
                     })
+
+        # Get word inflections (词形变化: 比较级、最高级、过去式等)
+        ec = result.get('ec', {})
+        if ec and isinstance(ec, dict):
+            word_data = ec.get('word', {})
+            if isinstance(word_data, dict):
+                wfs = word_data.get('wfs', [])
+                if wfs:
+                    wf_texts = []
+                    for wf in wfs:
+                        w = wf.get('wf', {})
+                        name = w.get('name', '')
+                        value = w.get('value', '')
+                        if name and value:
+                            wf_texts.append(f"{name}: {value}")
+                    if wf_texts:
+                        similar_words.append({
+                            'text': ' | '.join(wf_texts),
+                            'source': 'Inflection',
+                            'type': 'wordform',
+                            'subtitle': '词形变化'
+                        })
+
+        # Get word forms (派生词: 名词、副词、形容词等形式)
+        rel_word = result.get('rel_word', {})
+        if rel_word:
+            rels = rel_word.get('rels', [])
+            for rel in rels:
+                rel_info = rel.get('rel', {})
+                pos = rel_info.get('pos', '')
+                words = rel_info.get('words', [])
+                for w in words[:1]:  # Only first word per POS
+                    word_text = w.get('word', '')
+                    word_tran = w.get('tran', '')
+                    if word_text:
+                        similar_words.append({
+                            'text': f"{pos} {word_text}",
+                            'source': 'WordForm',
+                            'type': 'wordform',
+                            'subtitle': word_tran
+                        })
 
         # Get word discrimination (词义辨析)
         discriminate = result.get('discriminate', {})
@@ -274,12 +255,12 @@ def translate_youdao_dict(query):
             data_list = discriminate.get('data', [])
             for d in data_list[:1]:
                 usages = d.get('usages', [])
-                for u in usages[:3]:
+                for u in usages[:2]:  # Limit to 2
                     hw = u.get('headword', '')
                     usage = u.get('usage', '')
                     if hw and usage and hw.lower() != query.lower():
                         similar_words.append({
-                            'text': f"辨析 {hw}: {usage}",
+                            'text': f"vs {hw}: {usage}",
                             'source': 'Discriminate',
                             'type': 'memory',
                             'subtitle': '词义辨析'
