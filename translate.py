@@ -434,17 +434,32 @@ def get_all_translations(query):
         pass
 
     # Try MyMemory API (good for sentences)
+    # For sentences (few results), show MyMemory even if same translation
     try:
         results = translate_mymemory(query)
         for r in results:
-            if r['text'].lower() not in seen_texts:
-                seen_texts.add(r['text'].lower())
+            # If we have very few results, show different sources even with same text
+            if len(all_results) < 3 or r['text'].lower() not in seen_texts:
+                if r['text'].lower() not in seen_texts:
+                    seen_texts.add(r['text'].lower())
                 r['type'] = 'translation'
                 all_results.append(r)
     except Exception:
         pass
 
-    # Try Google as fallback
+    # Try Google as fallback (always try for more options)
+    try:
+        results = translate_google_free(query)
+        for r in results:
+            if len(all_results) < 3 or r['text'].lower() not in seen_texts:
+                if r['text'].lower() not in seen_texts:
+                    seen_texts.add(r['text'].lower())
+                r['type'] = 'translation'
+                all_results.append(r)
+    except Exception:
+        pass
+
+    # Fallback if still no results
     if not all_results:
         try:
             results = translate_google_free(query)
