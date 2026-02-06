@@ -345,11 +345,25 @@ def create_alfred_output(query):
 
         # Add translations first
         if translations:
-            for r in translations[:5]:  # Limit translations
+            # Merge short translations into one line
+            short_translations = []
+            long_translations = []
+            max_short_len = 20  # Max length to consider "short"
+            max_merge_count = 5  # Max number of translations to merge
+
+            for r in translations[:7]:  # Check first 7 translations
+                if len(r['text']) <= max_short_len and len(short_translations) < max_merge_count:
+                    short_translations.append(r)
+                else:
+                    long_translations.append(r)
+
+            # If we have multiple short translations, merge them
+            if len(short_translations) >= 2:
+                merged_text = ' | '.join([r['text'] for r in short_translations])
                 items.append({
-                    'title': r['text'],
-                    'subtitle': r['source'],
-                    'arg': r['text'],
+                    'title': merged_text,
+                    'subtitle': 'Translation',
+                    'arg': short_translations[0]['text'],  # Copy first one
                     'valid': True,
                     'icon': {
                         'path': 'icon.png'
@@ -362,6 +376,43 @@ def create_alfred_output(query):
                         }
                     }
                 })
+                # Add remaining long translations
+                for r in long_translations[:3]:
+                    items.append({
+                        'title': r['text'],
+                        'subtitle': r['source'],
+                        'arg': r['text'],
+                        'valid': True,
+                        'icon': {
+                            'path': 'icon.png'
+                        },
+                        'mods': {
+                            'cmd': {
+                                'subtitle': 'Press Cmd+Enter to copy original text',
+                                'arg': query,
+                                'valid': True
+                            }
+                        }
+                    })
+            else:
+                # Not enough short translations, show them separately
+                for r in translations[:5]:
+                    items.append({
+                        'title': r['text'],
+                        'subtitle': r['source'],
+                        'arg': r['text'],
+                        'valid': True,
+                        'icon': {
+                            'path': 'icon.png'
+                        },
+                        'mods': {
+                            'cmd': {
+                                'subtitle': 'Press Cmd+Enter to copy original text',
+                                'arg': query,
+                                'valid': True
+                            }
+                        }
+                    })
 
         # Add similar words / synonyms / phrases / memory aids
         # Sort to prioritize memory aids: memory > collocation > synonym > related > phrase
