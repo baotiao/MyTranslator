@@ -75,7 +75,7 @@ def translate_youdao_official(query, app_key, app_secret):
 
 def translate_youdao_dict(query):
     """Translate using free Youdao dictionary API with multiple results"""
-    url = 'https://dict.youdao.com/jsonapi_s?doctype=json&jsonversion=4'
+    url = 'https://dict.youdao.com/jsonapi?doctype=json'
 
     params = {
         'q': query,
