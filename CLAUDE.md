@@ -17,7 +17,7 @@ MyTranslator is an Alfred workflow for fast English-Chinese translation with wor
 ## Architecture
 
 ### API Used
-- **Youdao Dict API** (`https://dict.youdao.com/jsonapi_s?doctype=json&jsonversion=4`)
+- **Youdao Dict API** (`https://dict.youdao.com/jsonapi?doctype=json`)
   - Free, no authentication required
   - Fast (~0.2s)
   - Comprehensive data (translations + etymology + word forms)
