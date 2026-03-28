@@ -9,6 +9,8 @@ Fast Alfred workflow for English-Chinese translation with word origins and memor
 | Feature | Description |
 |---------|-------------|
 | **Fast** | ~0.3s response time |
+| **Pronunciation** | 自动朗读查询的单词 |
+| **Word History** | 自动记录查询单词到文件, 方便复习 |
 | **Etymology** | 词源词根记忆 (word roots) |
 | **Inflections** | 词形变化 (comparative, tenses) |
 | **Derivatives** | 派生词 (noun, adverb forms) |
@@ -55,6 +57,22 @@ zip -r MyTranslator.alfredworkflow info.plist translate.py icon.png
 | `yd remember` | Translation + etymology + verb forms |
 
 ## Configuration (Optional)
+
+### Word History File
+
+每次查询的单词会自动追加记录到 `~/mydic.txt`, 方便日后复习. 可通过环境变量自定义文件路径:
+
+```bash
+export MYDIC_FILE="~/my_vocabulary.txt"
+```
+
+记录格式: `时间戳\t单词`, 例如:
+```
+2026-03-29 10:30:00	happy
+2026-03-29 10:31:00	remember
+```
+
+### Youdao Official API
 
 For higher quality translations with official Youdao API:
 

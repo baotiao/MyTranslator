@@ -98,6 +98,7 @@ gh release create v1.0.0 MyTranslator.alfredworkflow --title "MyTranslator v1.0.
 ```bash
 export youdao_app_key="your_app_key"
 export youdao_app_secret="your_app_secret"
+export MYDIC_FILE="~/mydic.txt"  # Word history file path (default: ~/mydic.txt)
 ```
 
 ## Lessons Learned

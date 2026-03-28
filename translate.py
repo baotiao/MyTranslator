@@ -13,6 +13,8 @@ import uuid
 import urllib.request
 import urllib.parse
 import os
+import subprocess
+import datetime
 
 
 def get_youdao_sign(app_key, app_secret, query, salt, cur_time):
@@ -487,11 +489,35 @@ def create_alfred_output(query):
     return json.dumps({'items': items}, ensure_ascii=False)
 
 
+def speak_word(query):
+    """Speak the word using macOS say command in background"""
+    try:
+        subprocess.Popen(['say', query], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
+def save_to_dict(query):
+    """Append the queried word to dictionary file"""
+    dict_file = os.environ.get('MYDIC_FILE', '~/mydic.txt')
+    dict_file = os.path.expanduser(dict_file)
+    try:
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(dict_file, 'a', encoding='utf-8') as f:
+            f.write(f"{timestamp}\t{query}\n")
+    except Exception:
+        pass
+
+
 def main():
     if len(sys.argv) < 2:
         query = ''
     else:
         query = sys.argv[1]
+
+    if query.strip():
+        speak_word(query.strip())
+        save_to_dict(query.strip())
 
     output = create_alfred_output(query)
     print(output)
